@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Monthly Report</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/inter@5.0.8/index.css">
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --card: #ffffff;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --border: #e5e7eb;
+  }
+  * { font-family: 'Inter', system-ui, sans-serif; }
+  body { background: var(--bg); color: var(--ink); }
+  .glass-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    transition: all 0.25s ease;
+  }
+  .summary-card {
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+  .summary-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 4px;
+    background: var(--accent);
+  }
+  .summary-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px -10px rgba(15,23,42,0.15);
+  }
+  .summary-card.active {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px -10px rgba(15,23,42,0.2);
+    border-color: var(--accent);
+  }
+  .summary-card.active::before { height: 5px; }
+  .task-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.4s ease, margin-top 0.3s ease, opacity 0.3s ease;
+    opacity: 0;
+  }
+  .task-panel.open {
+    max-height: 800px;
+    margin-top: 16px;
+    opacity: 1;
+  }
+  .task-item {
+    transition: all 0.2s ease;
+  }
+  .task-item:hover {
+    transform: translateX(4px);
+    background: #f8fafc;
+  }
+  .donut-segment {
+    transition: stroke-dashoffset 1.2s ease;
+  }
+  .search-input:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+  }
+  .fade-in { animation: fadeIn 0.4s ease; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block;
+  }
+  .highlight { background: #fef3c7; padding: 0 2px; border-radius: 3px; }
+  .stat-number {
+    font-variant-numeric: tabular-nums;
+  }
+  .count-badge {
+    font-size: 2.25rem;
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+  <!-- Header -->
+  <header class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-8">
+    <div class="flex items-center gap-3">
+      <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">Monthly Report</h1>
+        <p class="text-sm text-slate-500 mt-0.5">Product delivery overview · <span id="reportMonth"></span></p>
+      </div>
+    </div>
+
+    <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+      <div class="relative">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input id="searchInput" type="text" placeholder="Search tasks..." class="search-input pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm w-full sm:w-72 transition"/>
+      </div>
+      <div class="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-500">
+        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>Last updated: <span id="lastUpdated" class="font-medium text-slate-700"></span></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Overall Task Count Banner -->
+  <div class="glass-card p-6 mb-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+      <div>
+        <div class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Overall Task Count</div>
+        <div class="flex items-baseline gap-2">
+          <span class="text-4xl sm:text-5xl font-bold stat-number text-slate-900" id="totalCount">0</span>
+          <span class="text-sm text-slate-500 font-medium">total tracked items</span>
+        </div>
+        <p class="text-xs text-slate-500 mt-1">Across all delivery categories this month</p>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3 md:gap-4 flex-1 md:max-w-xl">
+        <div class="rounded-xl p-3 border border-emerald-100 bg-emerald-50/50">
+          <div class="flex items-center gap-1.5 mb-1">
+            <span class="status-dot bg-emerald-500"></span>
+            <span class="text-xs font-medium text-slate-600">Completed</span>
+          </div>
+          <div class="text-2xl font-bold stat-number text-emerald-600">8</div>
+        </div>
+        <div class="rounded-xl p-3 border border-amber-100 bg-amber-50/50">
+          <div class="flex items-center gap-1.5 mb-1">
+            <span class="status-dot bg-amber-500"></span>
+            <span class="text-xs font-medium text-slate-600">In Progress</span>
+          </div>
+          <div class="text-2xl font-bold stat-number text-amber-600">2</div>
+        </div>
+        <div class="rounded-xl p-3 border border-slate-200 bg-slate-50/50">
+          <div class="flex items-center gap-1.5 mb-1">
+            <span class="status-dot bg-slate-400"></span>
+            <span class="text-xs font-medium text-slate-600">Planned</span>
+          </div>
+          <div class="text-2xl font-bold stat-number text-slate-600">4</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Summary Cards Grid -->
+  <div id="cardsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6"></div>
+
+  <!-- Expanded Task Panel -->
+  <div id="taskPanel" class="task-panel">
+    <div class="glass-card p-6 fade-in">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <div id="panelIcon" class="w-10 h-10 rounded-xl flex items-center justify-center"></div>
+          <div>
+            <h3 id="panelTitle" class="font-bold text-lg"></h3>
+            <p id="panelSubtitle" class="text-xs text-slate-500"></p>
+          </div>
+        </div>
+        <button id="closePanel" class="text-slate-400 hover:text-slate-700 transition p-2 rounded-lg hover:bg-slate-100">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div id="taskList" class="space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- Donut Chart Section -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+    <div class="glass-card p-6">
+      <div class="mb-5">
+        <h3 class="font-bold text-lg">Delivery Status</h3>
+        <p class="text-xs text-slate-500 mt-0.5">Task status breakdown</p>
+      </div>
+
+      <div class="space-y-3">
+        <div class="flex items-center justify-between p-4 rounded-xl border border-emerald-100 bg-emerald-50/40">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <span class="text-sm font-semibold text-slate-700">Completed</span>
+          </div>
+          <div class="flex items-baseline gap-1">
+            <span class="count-badge text-emerald-600">8</span>
+            <span class="text-sm text-slate-400 font-medium">tasks</span>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between p-4 rounded-xl border border-amber-100 bg-amber-50/40">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <span class="text-sm font-semibold text-slate-700">In Progress</span>
+          </div>
+          <div class="flex items-baseline gap-1">
+            <span class="count-badge text-amber-600">2</span>
+            <span class="text-sm text-slate-400 font-medium">tasks</span>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between p-4 rounded-xl border border-slate-200 bg-slate-50/60">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            </div>
+            <span class="text-sm font-semibold text-slate-700">Planned</span>
+          </div>
+          <div class="flex items-baseline gap-1">
+            <span class="count-badge text-slate-600">4</span>
+            <span class="text-sm text-slate-400 font-medium">tasks</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Donut Chart -->
+    <div class="glass-card p-6">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h3 class="font-bold text-lg">Delivery Distribution</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Visual breakdown of task status</p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-center gap-8 flex-wrap">
+        <div class="relative">
+          <svg width="180" height="180" viewBox="0 0 180 180" class="-rotate-90">
+            <circle cx="90" cy="90" r="70" fill="none" stroke="#f1f5f9" stroke-width="22"/>
+            <circle class="donut-segment" cx="90" cy="90" r="70" fill="none" stroke="#10b981" stroke-width="22"
+                    stroke-dasharray="439.82" stroke-dashoffset="439.82" data-target="189.12" stroke-linecap="round"/>
+            <circle class="donut-segment" cx="90" cy="90" r="70" fill="none" stroke="#f59e0b" stroke-width="22"
+                    stroke-dasharray="439.82" stroke-dashoffset="439.82" data-target="378.25" stroke-linecap="round"
+                    style="transform: rotate(205deg); transform-origin: center;"/>
+            <circle class="donut-segment" cx="90" cy="90" r="70" fill="none" stroke="#94a3b8" stroke-width="22"
+                    stroke-dasharray="439.82" stroke-dashoffset="439.82" data-target="312.27" stroke-linecap="round"
+                    style="transform: rotate(256deg); transform-origin: center;"/>
+          </svg>
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <span class="text-3xl font-bold">14</span>
+            <span class="text-xs text-slate-500">Total Tasks</span>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex items-center gap-3">
+            <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+            <div>
+              <div class="text-sm font-semibold">Completed</div>
+              <div class="text-xs text-slate-500">8 tasks</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+            <div>
+              <div class="text-sm font-semibold">In Progress</div>
+              <div class="text-xs text-slate-500">2 tasks</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="w-3 h-3 rounded-full bg-slate-400"></span>
+            <div>
+              <div class="text-sm font-semibold">Planned</div>
+              <div class="text-xs text-slate-500">4 tasks</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="text-center text-xs text-slate-400 mt-10 pb-4">
+    Monthly Report · Confidential stakeholder report
+  </footer>
+</div>
+
+<script>
+  const categories = [
+    {
+      id: 'completed', title: 'Completed Tasks (Technical)', count: 8,
+      color: '#10b981', bg: '#ecfdf5', border: '#a7f3d0',
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>`,
+      tasks: ['Handover from Previous Team','Codebase Organize','Fixed OTP for Test Account','CI/CD Pipeline Automation','Next.js Version Update','Server Cost Optimization','Technical Documentation','OTA Controller']
+    },
+    {
+      id: 'story', title: 'Story Count', count: 4,
+      color: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe',
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>`,
+      tasks: ['Google Analytics','Inflow Feedback Receive','Conveyance On/Off Dynamically','Admin Trading Operations (Offer and Bid Placement)']
+    },
+    {
+      id: 'devComplete', title: 'Story Development Complete', count: 3,
+      color: '#14b8a6', bg: '#f0fdfa', border: '#99f6e4',
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>`,
+      tasks: ['Google Analytics','Inflow Feedback Receive','Conveyance On/Off Dynamically']
+    },
+    {
+      id: 'testing', title: 'Testing', count: 4,
+      color: '#f97316', bg: '#fff7ed', border: '#fed7aa',
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>`,
+      tasks: ['OTA Controller','Google Analytics','Inflow Feedback Receive','Conveyance On/Off Dynamically']
+    },
+    {
+      id: 'inDev', title: 'In Development (Technical & Story)', count: 2,
+      color: '#8b5cf6', bg: '#f5f3ff', border: '#ddd6fe',
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>`,
+      tasks: ['Cronjob Migration','Admin Trading Operations (Offer and Bid Placement)']
+    },
+    {
+      id: 'roadmap', title: 'Roadmap', count: 4,
+      color: '#64748b', bg: '#f8fafc', border: '#e2e8f0',
+      icon: `<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>`,
+      tasks: ['Agent Leaderboard','Push Notification Engine Setup for Marketing','Website Revamp','Admin Panel Revamp']
+    }
+  ];
+
+  const cardsGrid = document.getElementById('cardsGrid');
+  const taskPanel = document.getElementById('taskPanel');
+  const panelTitle = document.getElementById('panelTitle');
+  const panelSubtitle = document.getElementById('panelSubtitle');
+  const panelIcon = document.getElementById('panelIcon');
+  const taskList = document.getElementById('taskList');
+  const closePanel = document.getElementById('closePanel');
+  const searchInput = document.getElementById('searchInput');
+
+  let activeCategory = null;
+
+  function renderCards() {
+    cardsGrid.innerHTML = categories.map(cat => `
+      <div class="glass-card summary-card p-5" data-id="${cat.id}" style="--accent:${cat.color}">
+        <div class="flex items-start justify-between mb-4">
+          <div class="w-11 h-11 rounded-xl flex items-center justify-center" style="background:${cat.bg}; color:${cat.color}; border:1px solid ${cat.border}">
+            ${cat.icon}
+          </div>
+          <span class="text-xs font-semibold px-2.5 py-1 rounded-full" style="background:${cat.bg}; color:${cat.color}">
+            ${cat.count} ${cat.count === 1 ? 'task' : 'tasks'}
+          </span>
+        </div>
+        <h3 class="font-bold text-base mb-1">${cat.title}</h3>
+        <p class="text-xs text-slate-500">Click to view details</p>
+      </div>
+    `).join('');
+
+    document.querySelectorAll('.summary-card').forEach(card => {
+      card.addEventListener('click', () => togglePanel(card.dataset.id));
+    });
+  }
+
+  function togglePanel(id) {
+    const cat = categories.find(c => c.id === id);
+    if (activeCategory === id) {
+      closePanelFn();
+      return;
+    }
+    activeCategory = id;
+
+    document.querySelectorAll('.summary-card').forEach(c => {
+      c.classList.toggle('active', c.dataset.id === id);
+    });
+
+    panelTitle.textContent = cat.title;
+    panelSubtitle.textContent = `${cat.count} ${cat.count === 1 ? 'item' : 'items'} in this category`;
+    panelIcon.style.background = cat.bg;
+    panelIcon.style.color = cat.color;
+    panelIcon.style.border = `1px solid ${cat.border}`;
+    panelIcon.innerHTML = cat.icon;
+
+    renderTasks(cat.tasks, searchInput.value.trim());
+    taskPanel.classList.add('open');
+    setTimeout(() => taskPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100);
+  }
+
+  function renderTasks(tasks, query) {
+    const filtered = query
+      ? tasks.filter(t => t.toLowerCase().includes(query.toLowerCase()))
+      : tasks;
+
+    if (filtered.length === 0) {
+      taskList.innerHTML = `<div class="text-center py-8 text-slate-400 text-sm">No tasks match your search</div>`;
+      return;
+    }
+
+    const cat = categories.find(c => c.id === activeCategory);
+    taskList.innerHTML = filtered.map((task, i) => {
+      const highlighted = query
+        ? task.replace(new RegExp(`(${query})`, 'gi'), '<span class="highlight">$1</span>')
+        : task;
+      return `
+        <div class="task-item flex items-center gap-3 p-3 rounded-xl border border-slate-100 bg-white" style="animation-delay:${i * 50}ms">
+          <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style="background:${cat.bg}; color:${cat.color}">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <span class="flex-1 text-sm font-medium text-slate-700">${highlighted}</span>
+          <span class="text-xs font-semibold px-2 py-1 rounded-md" style="background:${cat.bg}; color:${cat.color}">
+            ${cat.title.split(' ')[0]}
+          </span>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function closePanelFn() {
+    activeCategory = null;
+    taskPanel.classList.remove('open');
+    document.querySelectorAll('.summary-card').forEach(c => c.classList.remove('active'));
+  }
+
+  closePanel.addEventListener('click', closePanelFn);
+
+  searchInput.addEventListener('input', (e) => {
+    const q = e.target.value.trim();
+    if (activeCategory) {
+      const cat = categories.find(c => c.id === activeCategory);
+      renderTasks(cat.tasks, q);
+    } else if (q) {
+      const match = categories.find(c => c.tasks.some(t => t.toLowerCase().includes(q.toLowerCase())));
+      if (match) {
+        togglePanel(match.id);
+        renderTasks(match.tasks, q);
+      }
+    }
+  });
+
+  // Report month
+  const now = new Date();
+  document.getElementById('reportMonth').textContent = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  document.getElementById('lastUpdated').textContent = now.toLocaleString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
+  });
+
+  // Animate total count to 14
+  const totalTasks = 14;
+  const totalEl = document.getElementById('totalCount');
+  let current = 0;
+  const step = 1;
+  const counterInterval = setInterval(() => {
+    current += step;
+    if (current >= totalTasks) {
+      current = totalTasks;
+      clearInterval(counterInterval);
+    }
+    totalEl.textContent = current;
+  }, 50);
+
+  // Animate donut
+  setTimeout(() => {
+    document.querySelectorAll('.donut-segment').forEach(seg => {
+      const target = parseFloat(seg.dataset.target);
+      seg.style.strokeDashoffset = target;
+    });
+  }, 300);
+
+  renderCards();
+</script>
+</body>
+</html>
+
